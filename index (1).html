@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Taskly — Simple Task Manager</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&family=Open+Sans:wght@400;500&display=swap" rel="stylesheet" />
+
+  <!--
+    =====================================================
+    STEP 3: SEMANTICS — using proper HTML5 landmarks
+    header, nav, main, section, article, footer
+    so screen readers and search engines understand
+    the page structure, not just divs everywhere
+    =====================================================
+
+    STEP 4: STYLE — CSS approach
+    - CSS custom properties (variables) for the color palette
+    - Mobile-first: base styles are for small screens
+    - min-width media queries expand layout upward
+    - CSS Grid for the task card grid (macro layout)
+    - Flexbox for nav bar and input row (micro components)
+    - clamp() for fluid font sizes
+    =====================================================
+  -->
+
+  <style>
+    /* ── DESIGN TOKENS ───────────────────────────── */
+    :root {
+      --mocha:      #A5856E;   /* primary — buttons, accents */
+      --mocha-dark: #7a5f4e;   /* hover state */
+      --blue:       #A0D4E0;   /* badges, highlights */
+      --grey-bg:    #F2F0EA;   /* page background */
+      --white:      #ffffff;
+      --ink:        #2c2420;   /* main text */
+      --ink-soft:   #6b5e58;   /* secondary text */
+      --danger:     #c0392b;   /* delete button */
+      --done-bg:    #edf7f4;   /* completed task row tint */
+
+      --font-head: 'Montserrat', sans-serif;
+      --font-body: 'Open Sans', sans-serif;
+
+      --radius: 8px;
+      --shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+
+    /* ── RESET ───────────────────────────────────── */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: var(--font-body);
+      background: var(--grey-bg);
+      color: var(--ink);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+    button { cursor: pointer; font-family: inherit; }
+    input  { font-family: inherit; }
+
+    /* ── HEADER / NAV ────────────────────────────── */
+    /*
+      Flexbox: space-between pushes logo left, links right.
+      On mobile the nav links are hidden; hamburger shows.
+    */
+    header {
+      background: var(--white);
+      box-shadow: var(--shadow);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 1.2rem;
+      height: 56px;
+    }
+    .logo {
+      font-family: var(--font-head);
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--mocha);
+    }
+    /* Desktop nav links — hidden on mobile */
+    .nav-links {
+      display: none;
+      gap: 1.8rem;
+      list-style: none;
+    }
+    .nav-links a {
+      text-decoration: none;
+      font-size: 0.88rem;
+      font-weight: 500;
+      color: var(--ink-soft);
+      transition: color 0.2s;
+    }
+    .nav-links a:hover,
+    .nav-links a.active { color: var(--mocha); }
+
+    /* Hamburger button — shown on mobile only */
+    .hamburger {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      background: none;
+      border: none;
+      padding: 4px;
+    }
+    .hamburger span {
+      display: block;
+      width: 22px;
+      height: 2px;
+      background: var(--ink);
+      border-radius: 2px;
+      transition: transform 0.2s, opacity 0.2s;
+    }
+    /* Animate hamburger → X when menu is open */
+    .hamburger[aria-expanded="true"] span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+    .hamburger[aria-expanded="true"] span:nth-child(2) { opacity: 0; }
+    .hamburger[aria-expanded="true"] span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+    /* Mobile dropdown menu */
+    .mobile-nav {
+      display: none;
+      flex-direction: column;
+      background: var(--white);
+      border-top: 1px solid #e8e4dc;
+      padding: 1rem 1.2rem;
+      gap: 0.9rem;
+    }
+    .mobile-nav.open { display: flex; }
+    .mobile-nav a {
+      text-decoration: none;
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: var(--ink-soft);
+    }
+
+    /* ── MAIN LAYOUT ─────────────────────────────── */
+    main {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem 1.2rem 4rem;
+    }
+
+    /* ── PAGE TITLE ──────────────────────────────── */
+    .page-title {
+      font-family: var(--font-head);
+      font-size: clamp(1.5rem, 4vw, 2rem); /* fluid: shrinks on mobile */
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 0.3rem;
+    }
+    .page-sub {
+      color: var(--ink-soft);
+      font-size: 0.9rem;
+      margin-bottom: 1.8rem;
+    }
+
+    /* ── ADD TASK FORM ───────────────────────────── */
+    /*
+      Flexbox: input stretches (flex:1), button stays fixed width.
+      On very small screens they stack vertically.
+    */
+    .add-form {
+      display: flex;
+      gap: 0.6rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap; /* wraps on tiny screens */
+    }
+    .add-form input {
+      flex: 1;
+      min-width: 180px; /* prevent shrinking too small */
+      padding: 0.65rem 1rem;
+      border: 2px solid #ddd8d0;
+      border-radius: var(--radius);
+      font-size: 0.95rem;
+      background: var(--white);
+      color: var(--ink);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .add-form input:focus { border-color: var(--mocha); }
+    .add-form input::placeholder { color: #b0a8a0; }
+    .btn-add {
+      padding: 0.65rem 1.4rem;
+      background: var(--mocha);
+      color: var(--white);
+      border: none;
+      border-radius: var(--radius);
+      font-family: var(--font-head);
+      font-size: 0.88rem;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    .btn-add:hover { background: var(--mocha-dark); }
+
+    /* ── FILTER TABS ─────────────────────────────── */
+    .filter-bar {
+      display: flex;
+      gap: 0.4rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .filter-btn {
+      padding: 0.4rem 1rem;
+      border: 2px solid transparent;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      background: var(--white);
+      color: var(--ink-soft);
+      transition: all 0.18s;
+    }
+    .filter-btn:hover { border-color: var(--mocha); color: var(--mocha); }
+    .filter-btn.active {
+      background: var(--mocha);
+      color: var(--white);
+      border-color: var(--mocha);
+    }
+
+    /* ── TASK COUNT BADGE ────────────────────────── */
+    .task-meta {
+      font-size: 0.82rem;
+      color: var(--ink-soft);
+      margin-bottom: 1rem;
+    }
+    .task-meta strong { color: var(--mocha); }
+
+    /* ── TASK GRID ───────────────────────────────── */
+    /*
+      CSS Grid — macro layout:
+      Mobile:  1 column
+      Tablet:  2 columns  (768px)
+      Desktop: 3 columns  (1024px)
+    */
+    .task-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.9rem;
+    }
+
+    /* ── TASK CARD ───────────────────────────────── */
+    /*
+      Each card is an <article> — a self-contained content unit.
+      Flexbox inside: checkbox + text grow, delete button stays right.
+    */
+    .task-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 1rem 1.1rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      box-shadow: var(--shadow);
+      border-left: 4px solid var(--blue);
+      transition: opacity 0.2s, transform 0.2s;
+      animation: slideIn 0.2s ease;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    /* Completed card — dimmed with green tint */
+    .task-card.done {
+      background: var(--done-bg);
+      border-left-color: #4caf7d;
+      opacity: 0.75;
+    }
+
+    /* Custom checkbox */
+    .task-check {
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--mocha);
+      border-radius: 4px;
+      appearance: none;
+      -webkit-appearance: none;
+      flex-shrink: 0;
+      margin-top: 2px;
+      cursor: pointer;
+      transition: background 0.15s;
+      position: relative;
+    }
+    .task-check:checked {
+      background: var(--mocha);
+      border-color: var(--mocha);
+    }
+    /* Checkmark via CSS — no image needed */
+    .task-check:checked::after {
+      content: '';
+      position: absolute;
+      left: 4px; top: 1px;
+      width: 8px; height: 5px;
+      border-left: 2px solid white;
+      border-bottom: 2px solid white;
+      transform: rotate(-45deg);
+    }
+
+    .task-text {
+      flex: 1;
+      font-size: 0.92rem;
+      word-break: break-word;
+    }
+    /* Strikethrough when done */
+    .task-card.done .task-text {
+      text-decoration: line-through;
+      color: var(--ink-soft);
+    }
+
+    .btn-delete {
+      background: none;
+      border: none;
+      color: #ccc;
+      font-size: 1.1rem;
+      line-height: 1;
+      padding: 2px 4px;
+      border-radius: 4px;
+      transition: color 0.15s, background 0.15s;
+      flex-shrink: 0;
+    }
+    .btn-delete:hover {
+      color: var(--danger);
+      background: #fdecea;
+    }
+
+    /* ── EMPTY STATE ─────────────────────────────── */
+    .empty-state {
+      text-align: center;
+      padding: 3.5rem 1rem;
+      color: var(--ink-soft);
+    }
+    .empty-state .icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+    .empty-state p { font-size: 0.9rem; }
+
+    /* ── FOOTER ──────────────────────────────────── */
+    footer {
+      text-align: center;
+      padding: 1.5rem;
+      font-size: 0.78rem;
+      color: var(--ink-soft);
+      border-top: 1px solid #e4e0d8;
+      background: var(--white);
+    }
+
+    /* ── RESPONSIVE: TABLET 768px ────────────────── */
+    @media (min-width: 768px) {
+      /* Show real nav links, hide hamburger */
+      .nav-links   { display: flex; }
+      .hamburger   { display: none; }
+      .mobile-nav  { display: none !important; }
+
+      /* 2-column task grid */
+      .task-grid   { grid-template-columns: repeat(2, 1fr); }
+
+      /* Input & button side-by-side (already flex, just no wrap) */
+      .add-form    { flex-wrap: nowrap; }
+    }
+
+    /* ── RESPONSIVE: DESKTOP 1024px ─────────────── */
+    @media (min-width: 1024px) {
+      /* 3-column task grid */
+      .task-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    /* ── ACCESSIBILITY: focus ring ───────────────── */
+    :focus-visible {
+      outline: 2px solid var(--mocha);
+      outline-offset: 3px;
+    }
+
+    /* ── REDUCED MOTION ──────────────────────────── */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- STEP 3: Semantic landmark — <header> for branding + wayfinding -->
+  <header>
+    <nav aria-label="Main navigation">
+      <span class="logo">Taskly</span>
+
+      <!-- Desktop nav — hidden on mobile via CSS -->
+      <ul class="nav-links" role="list">
+        <li><a href="#" class="active">My Tasks</a></li>
+        <li><a href="#">Calendar</a></li>
+        <li><a href="#">Settings</a></li>
+      </ul>
+
+      <!-- Hamburger — shown on mobile only -->
+      <button
+        class="hamburger"
+        id="hamburger"
+        aria-expanded="false"
+        aria-controls="mobileNav"
+        aria-label="Open menu"
+      >
+        <span></span><span></span><span></span>
+      </button>
+    </nav>
+
+    <!-- Mobile dropdown -->
+    <div class="mobile-nav" id="mobileNav" role="navigation" aria-label="Mobile navigation">
+      <a href="#">My Tasks</a>
+      <a href="#">Calendar</a>
+      <a href="#">Settings</a>
+    </div>
+  </header>
+
+  <!-- STEP 3: <main> wraps the primary page content -->
+  <main>
+    <h1 class="page-title">My Tasks</h1>
+    <p class="page-sub">Stay on top of your day, one task at a time.</p>
+
+    <!-- Add task form -->
+    <!-- Using a <form> element so Enter key submits it naturally -->
+    <form class="add-form" id="addForm" aria-label="Add a new task">
+      <input
+        type="text"
+        id="taskInput"
+        placeholder="What do you need to do?"
+        maxlength="120"
+        autocomplete="off"
+        aria-label="Task description"
+        required
+      />
+      <button type="submit" class="btn-add">+ Add Task</button>
+    </form>
+
+    <!-- Filter tabs -->
+    <div class="filter-bar" role="group" aria-label="Filter tasks">
+      <button class="filter-btn active" data-filter="all">All</button>
+      <button class="filter-btn" data-filter="active">Active</button>
+      <button class="filter-btn" data-filter="done">Completed</button>
+    </div>
+
+    <!-- Live task count — aria-live so screen readers announce changes -->
+    <p class="task-meta" aria-live="polite" id="taskMeta"></p>
+
+    <!-- STEP 3: <section> for the task list itself -->
+    <section aria-label="Task list">
+      <!--
+        CSS Grid lives here.
+        JS will render <article> cards inside this div.
+      -->
+      <div class="task-grid" id="taskGrid"></div>
+    </section>
+  </main>
+
+  <!-- STEP 3: <footer> for terminal metadata -->
+  <footer>
+    <p>Taskly &mdash; DecodeLabs Full Stack Project 1 &mdash; Batch 2026</p>
+  </footer>
+
+
+  <!--
+    =====================================================
+    STEP 5: JAVASCRIPT — State & Interactivity
+    =====================================================
+    Keeping this simple and readable:
+
+    1. tasks[] array is our single source of truth (state)
+    2. Every user action (add / toggle / delete / filter) updates
+       the array, then calls render() to redraw the UI
+    3. localStorage persists tasks across page refreshes
+    4. No framework — plain DOM manipulation
+    =====================================================
+  -->
+  <script>
+    // ── STATE ──────────────────────────────────────────
+    // Load saved tasks from localStorage, or start with 3 demo tasks
+    let tasks = JSON.parse(localStorage.getItem('taskly-tasks')) || [
+      { id: 1, text: 'Read the project brief',       done: true  },
+      { id: 2, text: 'Draw a low-fidelity wireframe', done: false },
+      { id: 3, text: 'Write semantic HTML structure', done: false },
+    ];
+    let currentFilter = 'all';
+    let nextId = tasks.length ? Math.max(...tasks.map(t => t.id)) + 1 : 1;
+
+    // Save state to localStorage every time it changes
+    function save() {
+      localStorage.setItem('taskly-tasks', JSON.stringify(tasks));
+    }
+
+    // ── RENDER ─────────────────────────────────────────
+    // Called after every state change — redraws the grid & meta text
+    function render() {
+      const grid = document.getElementById('taskGrid');
+      const meta = document.getElementById('taskMeta');
+
+      // Filter the task list based on active tab
+      const visible = tasks.filter(t => {
+        if (currentFilter === 'active') return !t.done;
+        if (currentFilter === 'done')   return  t.done;
+        return true; // 'all'
+      });
+
+      // Count stats for the meta line
+      const total     = tasks.length;
+      const doneCount = tasks.filter(t => t.done).length;
+      meta.innerHTML  = `<strong>${doneCount}</strong> of <strong>${total}</strong> tasks completed`;
+
+      // Empty state — nothing to show
+      if (visible.length === 0) {
+        grid.innerHTML = `
+          <div class="empty-state" style="grid-column:1/-1">
+            <div class="icon">📋</div>
+            <p>${currentFilter === 'done' ? 'No completed tasks yet.' : 'No tasks here. Add one above!'}</p>
+          </div>`;
+        return;
+      }
+
+      // Build a card for each visible task
+      grid.innerHTML = visible.map(task => `
+        <article class="task-card ${task.done ? 'done' : ''}" data-id="${task.id}">
+          <input
+            type="checkbox"
+            class="task-check"
+            ${task.done ? 'checked' : ''}
+            aria-label="Mark '${escapeHtml(task.text)}' as ${task.done ? 'incomplete' : 'complete'}"
+          />
+          <span class="task-text">${escapeHtml(task.text)}</span>
+          <button class="btn-delete" aria-label="Delete task '${escapeHtml(task.text)}'">✕</button>
+        </article>
+      `).join('');
+    }
+
+    // ── HELPERS ────────────────────────────────────────
+    // Prevent XSS — escape any HTML in user-typed task text
+    function escapeHtml(str) {
+      const d = document.createElement('div');
+      d.textContent = str;
+      return d.innerHTML;
+    }
+
+    // ── EVENT: Add task ────────────────────────────────
+    document.getElementById('addForm').addEventListener('submit', e => {
+      e.preventDefault(); // stop page reload
+
+      const input = document.getElementById('taskInput');
+      const text  = input.value.trim();
+      if (!text) return;
+
+      tasks.push({ id: nextId++, text, done: false });
+      input.value = ''; // clear the field
+      save();
+      render();
+    });
+
+    // ── EVENT: Toggle done / Delete ────────────────────
+    // Event delegation — one listener on the grid handles all cards
+    document.getElementById('taskGrid').addEventListener('click', e => {
+      // Walk up to find the task card
+      const card = e.target.closest('[data-id]');
+      if (!card) return;
+      const id = Number(card.dataset.id);
+
+      if (e.target.classList.contains('task-check')) {
+        // Toggle the done state
+        const task = tasks.find(t => t.id === id);
+        if (task) task.done = e.target.checked;
+        save();
+        render();
+      }
+
+      if (e.target.classList.contains('btn-delete')) {
+        // Remove task from array
+        tasks = tasks.filter(t => t.id !== id);
+        save();
+        render();
+      }
+    });
+
+    // ── EVENT: Filter tabs ─────────────────────────────
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        currentFilter = btn.dataset.filter;
+
+        // Update active class on tabs
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        render();
+      });
+    });
+
+    // ── EVENT: Hamburger menu ──────────────────────────
+    const hamburger = document.getElementById('hamburger');
+    const mobileNav = document.getElementById('mobileNav');
+
+    hamburger.addEventListener('click', () => {
+      const isOpen = mobileNav.classList.toggle('open');
+      hamburger.setAttribute('aria-expanded', isOpen);
+      hamburger.setAttribute('aria-label', isOpen ? 'Close menu' : 'Open menu');
+    });
+
+    // Close mobile menu when a link is tapped
+    mobileNav.querySelectorAll('a').forEach(a => {
+      a.addEventListener('click', () => {
+        mobileNav.classList.remove('open');
+        hamburger.setAttribute('aria-expanded', false);
+      });
+    });
+
+    // ── INIT ───────────────────────────────────────────
+    render(); // draw the page on first load
+  </script>
+
+</body>
+</html>
